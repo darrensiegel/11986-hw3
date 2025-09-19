@@ -146,29 +146,27 @@ def backpropagate(variable: Variable, deriv: Any) -> None:
     seed = ensure_tensor(deriv, variable)
     grads[variable.unique_id] = seed
 
-    for node in topo:
-        g = grads.get(node.unique_id, 0)
-        g = ensure_tensor(g, node)
+    # ⬇️ reverse the order
+    for node in reversed(topo):
+        g = ensure_tensor(grads.get(node.unique_id, 0), node)
 
-        # Treat nodes with no history as leaves/consts: don't call chain_rule.
-        has_history = getattr(node, "history", None) is not None
-        if not has_history:
-            # If it's a true leaf (user tensor with requires_grad), accumulate.
+        # treat as leaf if there is no grad function
+        h = getattr(node, "history", None)
+        has_grad_fn = (h is not None) and (getattr(h, "last_fn", None) is not None)
+
+        if not has_grad_fn:
+            # leaf or constant; only accumulate if it’s a true leaf
             if node.is_leaf():
                 node.accumulate_derivative(g)
-            # Either way, do NOT recurse.
             continue
 
-        # Regular non-leaf case:
         for parent, contrib in node.chain_rule(g):
             if parent.is_constant():
                 continue
             contrib = ensure_tensor(contrib, parent)
-            prev = grads.get(parent.unique_id, 0)
-            prev = ensure_tensor(prev, parent)
-            # (optional) if you have reductions, do: contrib = sum_to_shape(contrib, parent.shape)
+            prev = ensure_tensor(grads.get(parent.unique_id, 0), parent)
+            # (optional, if you support reductions) contrib = sum_to_shape(contrib, parent.shape)
             grads[parent.unique_id] = prev + contrib
-
 
 
 
