@@ -50,8 +50,13 @@ class Embedding(Module):
         """
         bs, seq_len = x.shape
         ### BEGIN ASSIGN3_2
-        one_hot_x = one_hot(x, self.num_embeddings)
-        flat = one_hot_x.contiguous().view(bs * seq_len, self.num_embeddings)
+        # Avoid constructing a full identity matrix by building the minimal one-hot batch.
+        x_np = x.to_numpy().astype(np.int64)
+        flat_idx = x_np.reshape(-1)
+        rows = np.arange(flat_idx.shape[0], dtype=np.int64)
+        one_hot_np = np.zeros((flat_idx.shape[0], self.num_embeddings), dtype=np.float32)
+        one_hot_np[rows, flat_idx] = 1.0
+        flat = tensor_from_numpy(one_hot_np, backend=self.backend)
         embeddings = flat @ self.weights.value
         return embeddings.view(bs, seq_len, self.embedding_dim)
         ### END ASSIGN3_2
