@@ -89,32 +89,28 @@ class Variable(Protocol):
         """
         pass
 
-def topological_sort(variable: Variable) -> Iterable[Variable]:
-    
-    ordered = []
+def topological_sort(variable):
     seen = set()
-    
-    def recursive_helper(node: Variable, is_root: bool = False):
+    ordered = []
 
-        # track the already seen nodes and skip them 
-        if node.unique_id in seen:
+    def recursive_helper(node, is_root):
+        if id(node) in seen:
             return
-        seen.add(node.unique_id)
-        
-        # visit parents even if this node is "constant"
+        seen.add(id(node))
+
+        # If node has no history, it's a leaf/constant; don't descend.
+        if getattr(node, "history", None) is None:
+            # (optional) you may still append it so roots are kept in 'ordered'
+            if is_root:
+                ordered.append(node)
+            return
+
         for parent in node.parents:
             recursive_helper(parent, False)
-        
-        if is_root or not node.is_constant():
-            ordered.append(node)  
-    
-    recursive_helper(variable, True)
-    
-    # Reverse the list to get correct order for backpropagation
-    ordered.reverse()
-    
-    return ordered
+        ordered.append(node)
 
+    recursive_helper(variable, True)
+    return ordered
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
 
