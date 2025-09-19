@@ -231,10 +231,10 @@ def softmax_loss(logits: Tensor, target: Tensor) -> Tensor:
         loss : (minibatch, )
     """
     ### BEGIN ASSIGN3_1
-    lse = logsumexp(logits, dim=1)                                   
-    oh  = one_hot(target, logits.shape[1])                           
-    correct = (logits * oh).sum(dim=1)                               
-    loss = lse - correct                                            
-    return loss.squeeze(dim=1)                      
+    lse = logsumexp(logits, dim=1)              # (B, 1) in your API
+    oh  = one_hot(target, logits.shape[1])      # (B, C)
+    correct = (logits * oh).sum(dim=1)          # (B, 1) in your API
+    loss = lse - correct                        # (B, 1)
+    return loss.view(logits.shape[0])           # -> (B,)                 
     ### END ASSIGN3_1
    
