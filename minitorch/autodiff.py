@@ -89,6 +89,16 @@ class Variable(Protocol):
         """
         pass
 
+def ensure_tensor(g, like_tensor):
+    from .tensor import Tensor  # adjust import to your layout
+
+    if isinstance(g, (int, float)):
+        if g == 0:
+            return like_tensor.zeros_like()
+        # scalar non-zero: create a scalar tensor and broadcast later as needed
+        return Tensor([g], backend=like_tensor.backend)
+
+    return g
 def topological_sort(variable):
     seen = set()
     ordered = []
@@ -98,11 +108,10 @@ def topological_sort(variable):
             return
         seen.add(id(node))
 
-        # If node has no history, it's a leaf/constant; don't descend.
-        if getattr(node, "history", None) is None:
-            # (optional) you may still append it so roots are kept in 'ordered'
-            if is_root:
-                ordered.append(node)
+        has_history = getattr(node, "history", None) is not None
+        if not has_history:
+            # append every leaf, root or not
+            ordered.append(node)
             return
 
         for parent in node.parents:
@@ -111,6 +120,7 @@ def topological_sort(variable):
 
     recursive_helper(variable, True)
     return ordered
+
 
 def backpropagate(variable: Variable, deriv: Any) -> None:
 
