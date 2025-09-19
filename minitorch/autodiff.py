@@ -121,26 +121,37 @@ def topological_sort(variable):
     recursive_helper(variable, True)
     return ordered
 
-
 def backpropagate(variable: Variable, deriv: Any) -> None:
-
     topo = list(topological_sort(variable))
-    # Initialize all nodes to 0
-    grads: dict[int, Any] = {node.unique_id: 0 for node in topo}
-    # Set the root gradient
-    grads[variable.unique_id] = deriv
+
+    grads: dict[int, Any] = {}
+    seed = ensure_tensor(deriv, variable)
+    grads[variable.unique_id] = seed
 
     for node in topo:
-        g = grads.get(node.unique_id)
-        if g is not None:
+        g = grads.get(node.unique_id, 0)
+        g = ensure_tensor(g, node)
+
+        # Treat nodes with no history as leaves/consts: don't call chain_rule.
+        has_history = getattr(node, "history", None) is not None
+        if not has_history:
+            # If it's a true leaf (user tensor with requires_grad), accumulate.
             if node.is_leaf():
                 node.accumulate_derivative(g)
-            else:
-                for parent, contrib in node.chain_rule(g):
-                    # Only update gradients for non-constant nodes
-                    if not parent.is_constant():
-                        id = parent.unique_id
-                        grads[id] = grads[id] + contrib
+            # Either way, do NOT recurse.
+            continue
+
+        # Regular non-leaf case:
+        for parent, contrib in node.chain_rule(g):
+            if parent.is_constant():
+                continue
+            contrib = ensure_tensor(contrib, parent)
+            prev = grads.get(parent.unique_id, 0)
+            prev = ensure_tensor(prev, parent)
+            # (optional) if you have reductions, do: contrib = sum_to_shape(contrib, parent.shape)
+            grads[parent.unique_id] = prev + contrib
+
+
 
 
 @dataclass
