@@ -88,17 +88,35 @@ class Variable(Protocol):
                 contains a parent Variable and the corresponding gradient contribution.
         """
         pass
-
 def ensure_tensor(g, like_tensor):
-    from .tensor import Tensor  # adjust import to your layout
+    """
+    Return a Tensor gradient compatible with like_tensor.
+    - If g is a Python number, produce a Tensor with the same shape/backend
+      as like_tensor: 0 -> like*0 ; c != 0 -> like*0 + c
+    - If g is already a Tensor, pass it through.
+    - Otherwise, try to wrap it as a Tensor using like_tensor's backend.
+    """
+    from .tensor import Tensor  # adjust if needed
 
+    # Already a Tensor
+    if isinstance(g, Tensor):
+        return g
+
+    # Python scalar → make it Tensor-shaped
     if isinstance(g, (int, float)):
+        base = like_tensor * 0          # zeros, same shape/device/backend
         if g == 0:
-            return like_tensor.zeros_like()
-        # scalar non-zero: create a scalar tensor and broadcast later as needed
-        return Tensor([g], backend=like_tensor.backend)
+            return base
+        return base + g                  # broadcast scalar to shape
 
-    return g
+    # numpy scalar / list, etc. → wrap using like's backend
+    try:
+        return Tensor(g, backend=like_tensor.backend)
+    except Exception:
+        # last resort: coerce to scalar then broadcast
+        base = like_tensor * 0
+        return base + float(g)
+
 def topological_sort(variable):
     seen = set()
     ordered = []
